@@ -9,13 +9,13 @@ from typing import Any
 import re
 
 from ecactusecos.const import (
-    SOURCE_TYPE_BATTERY_SOC,
-    SOURCE_TYPE_BATTERY_POWER,
-    SOURCE_TYPE_EPS_POWER,
-    SOURCE_TYPE_GRID_POWER,
-    SOURCE_TYPE_HOME_POWER,
-    SOURCE_TYPE_METER_POWER,
-    SOURCE_TYPE_SOLAR_POWER,
+    DEFAULT_SOURCE_TYPES,
+    DEVICE_ALIAS_NAME,
+)
+
+
+from ecactusecos import (
+    EcactusEcos,
 )
 
 from homeassistant.const import PERCENTAGE
@@ -28,6 +28,9 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_ID,
+    CONF_PASSWORD,
+    CONF_USERNAME,
+    CONF_HOST,
     UnitOfPower,
 )
 from homeassistant.core import HomeAssistant
@@ -58,73 +61,6 @@ class EcactusEcosSensorEntityDescription(SensorEntityDescription):
     sensor_type: str = SENSOR_TYPE_RATE
 
 
-SENSORS_INFO = [
-    EcactusEcosSensorEntityDescription(
-        translation_key="battery_soc",
-        sensor_type=SENSOR_TYPE_RATE,
-        device_class=SensorDeviceClass.BATTERY,
-        native_unit_of_measurement=PERCENTAGE,
-        name=f"{DOMAIN}_{name_key(SOURCE_TYPE_BATTERY_SOC)}",
-        key=SOURCE_TYPE_BATTERY_SOC,
-        state_class=SensorStateClass.MEASUREMENT,
-    ),
-    EcactusEcosSensorEntityDescription(
-        translation_key="battery_power",
-        sensor_type=SENSOR_TYPE_RATE,
-        device_class=SensorDeviceClass.POWER,
-        native_unit_of_measurement=UnitOfPower.WATT,
-        name=f"{DOMAIN}_{name_key(SOURCE_TYPE_BATTERY_POWER)}",
-        key=SOURCE_TYPE_BATTERY_POWER,
-        state_class=SensorStateClass.MEASUREMENT,
-    ),
-    EcactusEcosSensorEntityDescription(
-        translation_key="eps_power",
-        sensor_type=SENSOR_TYPE_RATE,
-        device_class=SensorDeviceClass.POWER,
-        native_unit_of_measurement=UnitOfPower.WATT,
-        name=f"{DOMAIN}_{name_key(SOURCE_TYPE_EPS_POWER)}",
-        key=SOURCE_TYPE_EPS_POWER,
-        state_class=SensorStateClass.MEASUREMENT,
-    ),
-    EcactusEcosSensorEntityDescription(
-        translation_key="grid_power",
-        sensor_type=SENSOR_TYPE_RATE,
-        device_class=SensorDeviceClass.POWER,
-        native_unit_of_measurement=UnitOfPower.WATT,
-        name=f"{DOMAIN}_{name_key(SOURCE_TYPE_GRID_POWER)}",
-        key=SOURCE_TYPE_GRID_POWER,
-        state_class=SensorStateClass.MEASUREMENT,
-    ),
-    EcactusEcosSensorEntityDescription(
-        translation_key="home_power",
-        sensor_type=SENSOR_TYPE_RATE,
-        device_class=SensorDeviceClass.POWER,
-        native_unit_of_measurement=UnitOfPower.WATT,
-        name=f"{DOMAIN}_{name_key(SOURCE_TYPE_HOME_POWER)}",
-        key=SOURCE_TYPE_HOME_POWER,
-        state_class=SensorStateClass.MEASUREMENT,
-    ),
-    EcactusEcosSensorEntityDescription(
-        translation_key="meter_power",
-        sensor_type=SENSOR_TYPE_RATE,
-        device_class=SensorDeviceClass.POWER,
-        native_unit_of_measurement=UnitOfPower.WATT,
-        name=f"{DOMAIN}_{name_key(SOURCE_TYPE_METER_POWER)}",
-        key=SOURCE_TYPE_METER_POWER,
-        state_class=SensorStateClass.MEASUREMENT,
-    ),
-    EcactusEcosSensorEntityDescription(
-        translation_key="solar_power",
-        sensor_type=SENSOR_TYPE_RATE,
-        device_class=SensorDeviceClass.POWER,
-        native_unit_of_measurement=UnitOfPower.WATT,
-        name=f"{DOMAIN}_{name_key(SOURCE_TYPE_SOLAR_POWER)}",
-        key=SOURCE_TYPE_SOLAR_POWER,
-        state_class=SensorStateClass.MEASUREMENT,
-    ),
-]
-
-
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
@@ -136,26 +72,76 @@ async def async_setup_entry(
     ][DATA_COORDINATOR]
     user_id = config_entry.data[CONF_ID]
 
-    """The static Sensors """
-    async_add_entities(
-        EcactusEcosSensor(coordinator, user_id, description)
-        for description in SENSORS_INFO
-    )
+    # We need to login
+    username = config_entry.data[CONF_USERNAME]
+    password = config_entry.data[CONF_PASSWORD]
+    api_host = config_entry.data[CONF_HOST]
 
-    # """The dynamic Sensors"""
-    # username = config_entry.data[CONF_USERNAME]
-    # password = config_entry.data[CONF_PASSWORD]
+    ecactusecos = EcactusEcos(username, password, api_host)
 
-    # ecactusecos = EcactusEcos(username, password)
+    # Attempt authentication. If this fails, an EcactusEcosException will be thrown
+    await ecactusecos.authenticate()
 
-    # # Attempt authentication. If this fails, an EcactusEcosException will be thrown
-    # await ecactusecos.authenticate()
-
-    # if ecactusecos.is_authenticated():
-    #     async_add_entities(
-    #         EcactusEcosSensor(coordinator, user_id, description)
-    #         for description in SENSORS_INFO
-    #     )
+    if ecactusecos.is_authenticated():
+        sensors = []
+        # The default sensors
+        for source_type in DEFAULT_SOURCE_TYPES:
+            match source_type:
+                case "batterySoc":
+                    sensors.append(
+                        EcactusEcosSensorEntityDescription(
+                            sensor_type=SENSOR_TYPE_RATE,
+                            device_class=SensorDeviceClass.BATTERY,
+                            native_unit_of_measurement=PERCENTAGE,
+                            name=f"{DOMAIN}_{name_key(source_type)}",
+                            key=source_type,
+                            state_class=SensorStateClass.MEASUREMENT,
+                        )
+                    )
+                case _:
+                    sensors.append(
+                        EcactusEcosSensorEntityDescription(
+                            sensor_type=SENSOR_TYPE_RATE,
+                            device_class=SensorDeviceClass.POWER,
+                            native_unit_of_measurement=UnitOfPower.WATT,
+                            name=f"{DOMAIN}_{name_key(source_type)}",
+                            key=source_type,
+                            state_class=SensorStateClass.MEASUREMENT,
+                        )
+                    )
+        # The devices sensors
+        await ecactusecos.device_overview()
+        for deviceId, device in ecactusecos._devices.items():
+            for source_type in DEFAULT_SOURCE_TYPES:
+                if device[DEVICE_ALIAS_NAME] is not None:
+                    key = f"{device[DEVICE_ALIAS_NAME].lower()}{source_type[:1].upper() + source_type[1:]}"
+                    match source_type:
+                        case "batterySoc":
+                            sensors.append(
+                                EcactusEcosSensorEntityDescription(
+                                    sensor_type=SENSOR_TYPE_RATE,
+                                    device_class=SensorDeviceClass.BATTERY,
+                                    native_unit_of_measurement=PERCENTAGE,
+                                    name=f"{DOMAIN}_{name_key(key)}",
+                                    key=key,
+                                    state_class=SensorStateClass.MEASUREMENT,
+                                )
+                            )
+                        case _:
+                            sensors.append(
+                                EcactusEcosSensorEntityDescription(
+                                    sensor_type=SENSOR_TYPE_RATE,
+                                    device_class=SensorDeviceClass.POWER,
+                                    native_unit_of_measurement=UnitOfPower.WATT,
+                                    name=f"{DOMAIN}_{name_key(key)}",
+                                    key=key,
+                                    state_class=SensorStateClass.MEASUREMENT,
+                                )
+                            )
+        async_add_entities(
+            EcactusEcosSensor(coordinator, user_id, description)
+            for description in sensors
+        )
 
 
 class EcactusEcosSensor(

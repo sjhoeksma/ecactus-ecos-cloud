@@ -9,18 +9,34 @@ from ecactusecos import (
     EcactusEcosConnectionException,
     EcactusEcosException,
 )
+
+from ecactusecos.const import (
+    API_HOSTS,
+)
+
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
-from homeassistant.const import CONF_ID, CONF_PASSWORD, CONF_USERNAME
+from homeassistant.const import CONF_ID, CONF_PASSWORD, CONF_USERNAME, CONF_HOST
 from homeassistant.data_entry_flow import AbortFlow
+from homeassistant.helpers.selector import selector
 
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
 DATA_SCHEMA = vol.Schema(
-    {vol.Required(CONF_USERNAME): str, vol.Required(CONF_PASSWORD): str}
+    {
+        vol.Required(CONF_USERNAME): str,
+        vol.Required(CONF_PASSWORD): str,
+        vol.Required(CONF_HOST): selector(
+            {
+                "select": {
+                    "options": API_HOSTS,
+                }
+            }
+        ),
+    }
 )
 
 
@@ -63,6 +79,7 @@ class EcactusEcosConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_ID: user_id,
                     CONF_USERNAME: user_input[CONF_USERNAME],
                     CONF_PASSWORD: user_input[CONF_PASSWORD],
+                    CONF_HOST: user_input[CONF_HOST],
                 },
             )
 
@@ -80,8 +97,9 @@ class EcactusEcosConfigFlow(ConfigFlow, domain=DOMAIN):
         """
         username = user_input[CONF_USERNAME]
         password = user_input[CONF_PASSWORD]
+        api_host = user_input[CONF_HOST]
 
-        ecactusecos = EcactusEcos(username, password)
+        ecactusecos = EcactusEcos(username, password, api_host)
 
         # Attempt authentication. If this fails, an EcactusEcosException will be thrown
         await ecactusecos.authenticate()
