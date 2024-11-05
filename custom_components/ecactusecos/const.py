@@ -16,7 +16,7 @@ DATA_COORDINATOR = "coordinator"
 DOMAIN = "ecactusecos"
 
 """Interval in seconds between polls to Ecactus Ecos, same as on cloud side to inverter."""
-POLLING_INTERVAL = 10
+POLLING_INTERVAL = 20
 
 """Timeout for fetching sensor data"""
 FETCH_TIMEOUT = 10

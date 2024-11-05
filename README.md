@@ -27,9 +27,7 @@ After a valid login sensors will be avaiable under **sensor.ecacatus\_**. If you
 type: custom:power-flow-card-plus
 entities:
   grid:
-    entity:
-      production: sensor.tibber_pulse_thuis_power_production
-      consumption: sensor.tibber_pulse_thuis_power
+    entity: sensor.ecactusecos_meter_power
     secondary_info: {}
   solar:
     icon: mdi:solar-panel-large
